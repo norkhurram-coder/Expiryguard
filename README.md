@@ -2,6 +2,7 @@
 
 **Smart Pharmacy Stock & Expiry Management System**
 *Sell safe stock. Lose less to expiry.*
+**Live demo:** https://expiryguard-lyart.vercel.app
 
 Noor-ul-Haya · F24-BSSE-105 · Section 5B · Software Construction & Development · Instructor: Sir Waqas
 
