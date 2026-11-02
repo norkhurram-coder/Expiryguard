@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+/* ExpiryGuard colours – taken from the project presentation */
+@theme {
+  --color-teal-brand: #0f5257;   /* main colour */
+  --color-teal-dark: #0a3b3f;
+  --color-teal-soft: #e6f4f1;    /* light backgrounds */
+  --color-teal-line: #cfe3df;    /* borders */
+  --color-coral: #e4572e;        /* alerts and warnings */
+  --color-coral-soft: #fce4dd;
+  --color-ink: #1e2b2b;          /* main text */
+  --color-muted: #5e6b6b;        /* secondary text */
+}
+
+body {
+  background-color: #f5faf9;
+  color: var(--color-ink);
+  font-family: Calibri, "Segoe UI", system-ui, -apple-system, sans-serif;
+}
