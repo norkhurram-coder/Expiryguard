@@ -27,14 +27,14 @@ export default function MedicineForm({ medicine }: { medicine?: Medicine }) {
     resolver: zodResolver(medicineSchema),
     mode: "onTouched",
     defaultValues: medicine
-      ? ({ ...medicine, rack_location: medicine.rack_location ?? "" } as MedicineValues)
-      : { brand_name: "", generic_name: "", strength: "", rack_location: "", min_stock_level: 10 },
+      ? ({ ...medicine, rack_location: medicine.rack_location ?? "", barcode: medicine.barcode ?? "" } as MedicineValues)
+      : { brand_name: "", generic_name: "", strength: "", rack_location: "", min_stock_level: 10, barcode: "" },
   });
 
   async function onSubmit(values: MedicineValues) {
     setServerError("");
     const supabase = createClient();
-    const row = { ...values, rack_location: values.rack_location || null };
+    const row = { ...values, rack_location: values.rack_location || null, barcode: values.barcode || null };
 
     const { error } = medicine
       ? await supabase.from("medicines").update(row).eq("id", medicine.id)
@@ -42,7 +42,11 @@ export default function MedicineForm({ medicine }: { medicine?: Medicine }) {
 
     if (error) {
       setServerError(
-        error.code === "23505" ? "A medicine with this brand name, strength and dosage form already exists." : friendlyError(error)
+        error.code === "23505"
+          ? error.message.includes("barcode")
+            ? "Another medicine already has this barcode."
+            : "A medicine with this brand name, strength and dosage form already exists."
+          : friendlyError(error)
       );
       return;
     }
@@ -115,6 +119,14 @@ export default function MedicineForm({ medicine }: { medicine?: Medicine }) {
           required
           error={errors.min_stock_level?.message}
           registration={register("min_stock_level", { valueAsNumber: true })}
+        />
+        <Input
+          label="Barcode"
+          placeholder="Scan or type it (optional)"
+          maxLength={30}
+          hint="Lets the sales screen add this medicine with a barcode scanner"
+          error={errors.barcode?.message}
+          registration={register("barcode")}
         />
       </div>
 

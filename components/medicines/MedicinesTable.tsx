@@ -22,7 +22,7 @@ export default function MedicinesTable({ medicines, canEdit, canDelete }: Props)
 
   const term = search.toLowerCase();
   const shown = medicines.filter((m) =>
-    [m.brand_name, m.generic_name, m.category, m.rack_location ?? ""].some((v) => v.toLowerCase().includes(term))
+    [m.brand_name, m.generic_name, m.category, m.rack_location ?? "", m.barcode ?? ""].some((v) => v.toLowerCase().includes(term))
   );
 
   async function handleDelete(m: Medicine) {
@@ -51,7 +51,7 @@ export default function MedicinesTable({ medicines, canEdit, canDelete }: Props)
   return (
     <div className="space-y-4">
       {error && <Alert kind="error">{error}</Alert>}
-      <SearchBox value={search} onChange={setSearch} placeholder="Search by brand, generic, category…" />
+      <SearchBox value={search} onChange={setSearch} placeholder="Search by brand, generic, category, barcode…" />
 
       <Table headers={["Brand", "Generic", "Strength", "Form", "Category", "Rack", "In stock", "Actions"]}>
         {shown.map((m) => {

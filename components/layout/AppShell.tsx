@@ -6,17 +6,37 @@ import { usePathname } from "next/navigation";
 import { roleLabel } from "@/lib/constants";
 import LogoutButton from "./LogoutButton";
 
-const MAIN_LINKS = [
-  { href: "/", label: "Dashboard", icon: "📊" },
-  { href: "/medicines", label: "Medicines", icon: "💊" },
-  { href: "/batches", label: "Batches / Stock", icon: "📦" },
-  { href: "/suppliers", label: "Suppliers", icon: "🚚", hideForSales: true },
-];
+type Role = "admin" | "pharmacist" | "sales_staff";
+const ALL: Role[] = ["admin", "pharmacist", "sales_staff"];
+const MANAGERS: Role[] = ["admin", "pharmacist"];
 
-const COMING_SOON = [
-  { label: "Sales (FEFO)", icon: "🛒" },
-  { label: "Risk Forecast", icon: "📈" },
-  { label: "Reports", icon: "📄" },
+// Which roles see each page (FR-16: Sales Staff only get the sales screen and stock lookup).
+const SECTIONS: { title: string; links: { href: string; label: string; icon: string; roles: Role[] }[] }[] = [
+  {
+    title: "Daily work",
+    links: [
+      { href: "/", label: "Dashboard", icon: "📊", roles: MANAGERS },
+      { href: "/sales", label: "Sales (FEFO)", icon: "🛒", roles: ALL },
+      { href: "/medicines", label: "Medicines", icon: "💊", roles: ALL },
+      { href: "/batches", label: "Batches / Stock", icon: "📦", roles: ALL },
+      { href: "/suppliers", label: "Suppliers", icon: "🚚", roles: MANAGERS },
+    ],
+  },
+  {
+    title: "Expiry control",
+    links: [
+      { href: "/forecast", label: "Risk Forecast", icon: "📈", roles: MANAGERS },
+      { href: "/alerts", label: "Alerts & Daily Scan", icon: "🔔", roles: MANAGERS },
+      { href: "/reports", label: "Reports", icon: "📄", roles: MANAGERS },
+    ],
+  },
+  {
+    title: "Admin",
+    links: [
+      { href: "/users", label: "Users & Roles", icon: "👥", roles: ["admin"] },
+      { href: "/audit", label: "Audit Log", icon: "🧾", roles: ["admin"] },
+    ],
+  },
 ];
 
 type Props = { fullName: string; role: string; children: React.ReactNode };
@@ -26,7 +46,10 @@ export default function AppShell({ fullName, role, children }: Props) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const links = MAIN_LINKS.filter((link) => !(link.hideForSales && role === "sales_staff"));
+  const sections = SECTIONS.map((section) => ({
+    ...section,
+    links: section.links.filter((link) => link.roles.includes(role as Role)),
+  })).filter((section) => section.links.length > 0);
 
   function isActive(href: string) {
     return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -39,7 +62,7 @@ export default function AppShell({ fullName, role, children }: Props) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-teal-brand text-white transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 transform overflow-y-auto bg-teal-brand text-white transition-transform lg:static lg:translate-x-0 ${
           menuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -52,30 +75,24 @@ export default function AppShell({ fullName, role, children }: Props) {
         </div>
 
         <nav className="space-y-1 p-3">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setMenuOpen(false)}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                isActive(link.href) ? "bg-white text-teal-brand" : "text-white/90 hover:bg-white/10"
-              }`}
-            >
-              <span>{link.icon}</span>
-              {link.label}
-            </Link>
-          ))}
-
-          <p className="px-3 pb-1 pt-5 text-[11px] font-semibold uppercase tracking-wider text-white/50">Next milestone</p>
-          {COMING_SOON.map((item) => (
-            <div
-              key={item.label}
-              title="Coming soon"
-              className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/40"
-            >
-              <span className="grayscale">{item.icon}</span>
-              {item.label}
-              <span className="ml-auto rounded-full bg-white/10 px-2 py-0.5 text-[10px]">Soon</span>
+          {sections.map((section) => (
+            <div key={section.title}>
+              <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-white/50 first:pt-1">
+                {section.title}
+              </p>
+              {section.links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMenuOpen(false)}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                    isActive(link.href) ? "bg-white text-teal-brand" : "text-white/90 hover:bg-white/10"
+                  }`}
+                >
+                  <span>{link.icon}</span>
+                  {link.label}
+                </Link>
+              ))}
             </div>
           ))}
         </nav>

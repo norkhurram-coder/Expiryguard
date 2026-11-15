@@ -54,7 +54,7 @@ export function selectFefoBatch<T extends { expiry_date: string; quantity: numbe
   return sellable[0] ?? null;
 }
 
-/** FR-09: average units sold per day over the last `periodDays` days (default 60). */
+/** FR-09: average units sold per day over the last `periodDays` FULL days (default 60). Today is left out because it is not over yet. */
 export function averageDailySales(
   sales: { sold_on: string; quantity: number }[],
   today: string = todayISO(),
@@ -63,7 +63,7 @@ export function averageDailySales(
   const total = sales
     .filter((s) => {
       const age = daysUntil(today, s.sold_on); // how many days ago the sale happened
-      return age >= 0 && age < periodDays;
+      return age >= 1 && age <= periodDays;
     })
     .reduce((sum, s) => sum + s.quantity, 0);
   return total / periodDays;
@@ -92,4 +92,64 @@ export function needsReturnAlert(
 ): boolean {
   const daysToDeadline = daysUntil(lastReturnDate(expiryDate, returnWindowDays), today);
   return daysToDeadline >= 0 && daysToDeadline <= alertDays;
+}
+
+/** Earliest expiry first (ties: lower id first) – the same order the database uses at checkout. */
+function byExpiry<T extends { expiry_date: string; id?: number }>(a: T, b: T): number {
+  return toDayNumber(a.expiry_date) - toDayNumber(b.expiry_date) || (a.id ?? 0) - (b.id ?? 0);
+}
+
+/**
+ * FR-04 / FR-05: plan which batches a sale of `wanted` units will come from.
+ * Takes the earliest-expiring, non-expired batch first and moves on to the next batch
+ * when one is not enough. `shortBy` > 0 means there is not enough in-date stock.
+ * (The real sale is done by the database function process_sale with the same rules.)
+ */
+export function allocateFefo<T extends { id?: number; expiry_date: string; quantity: number }>(
+  batches: T[],
+  wanted: number,
+  today: string = todayISO()
+): { lines: { batch: T; quantity: number }[]; shortBy: number } {
+  const sellable = batches.filter((b) => b.quantity > 0 && !isExpired(b.expiry_date, today)).sort(byExpiry);
+  const lines: { batch: T; quantity: number }[] = [];
+  let need = wanted;
+  for (const batch of sellable) {
+    if (need <= 0) break;
+    const take = Math.min(need, batch.quantity);
+    lines.push({ batch, quantity: take });
+    need -= take;
+  }
+  return { lines, shortBy: Math.max(0, need) };
+}
+
+/**
+ * FR-10 for ALL batches of one medicine, taking FEFO into account.
+ * Customers buy from the earliest-expiring batch first, so a later batch only starts
+ * selling once the earlier one is sold out (or has expired). With a single batch this is
+ * exactly the proposal formula: unsold = stock left − (avg daily sales × days left).
+ *
+ * Example: 2/day, batch A = 60 units (30 days), batch B = 100 units (60 days).
+ * A sells out on day 30, so B only has 30 selling days → 60 sold, 40 at risk.
+ * (The simple per-batch formula would wrongly say B is safe: 100 − 2 × 60 = 0.)
+ */
+export function forecastBatches<T extends { id?: number; expiry_date: string; quantity: number }>(
+  batches: T[],
+  avgDailySales: number,
+  today: string = todayISO()
+): (T & { daysLeft: number; expectedSales: number; unsold: number })[] {
+  const sellable = batches.filter((b) => b.quantity > 0 && !isExpired(b.expiry_date, today)).sort(byExpiry);
+  let startDay = 0; // the day (from today) when this batch starts being sold
+  return sellable.map((b) => {
+    const daysLeft = daysUntil(b.expiry_date, today);
+    const sellingDays = Math.max(0, daysLeft - startDay);
+    const expectedSales = Math.min(b.quantity, avgDailySales * sellingDays);
+    // The next batch starts when this one is sold out, or when this one expires.
+    startDay = avgDailySales > 0 ? Math.min(daysLeft, startDay + b.quantity / avgDailySales) : daysLeft;
+    return {
+      ...b,
+      daysLeft,
+      expectedSales: Math.round(expectedSales),
+      unsold: Math.max(0, Math.round(b.quantity - expectedSales)),
+    };
+  });
 }

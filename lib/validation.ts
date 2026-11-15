@@ -70,7 +70,6 @@ export const signupSchema = z
     full_name: personName("Full name"),
     age: wholeNumber("Age", 18, 70),
     phone,
-    role: z.enum(["admin", "pharmacist", "sales_staff"], { error: "Please choose a role" }),
     email,
     password: z
       .string()
@@ -106,6 +105,11 @@ export const medicineSchema = z.object({
     .max(20, "Rack location must be 20 characters or less")
     .regex(/^[A-Za-z0-9-]*$/, "Use only letters, numbers and hyphens, e.g. A-3"),
   min_stock_level: wholeNumber("Minimum stock level", 0, 10_000),
+  // NFR-05: optional barcode (what the scanner types at checkout)
+  barcode: z
+    .string()
+    .trim()
+    .regex(/^([0-9A-Za-z-]{4,30})?$/, "Barcode must be 4–30 letters, numbers or hyphens (or leave it empty)"),
 });
 export type MedicineValues = z.infer<typeof medicineSchema>;
 

@@ -7,8 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { PASSWORD_RULES, signupSchema, type SignupValues } from "@/lib/validation";
-import { ROLES } from "@/lib/constants";
-import { Input, Select } from "@/components/ui/Input";
+import { Input } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Alert from "@/components/ui/Alert";
 
@@ -39,7 +38,8 @@ export default function SignupForm() {
           full_name: values.full_name,
           age: values.age,
           phone: values.phone,
-          role: values.role,
+          // No role here: the first account becomes Admin, everyone else starts as
+          // Sales Staff and the Admin gives them a role on the Users page.
         },
       },
     });
@@ -100,14 +100,10 @@ export default function SignupForm() {
         />
       </div>
 
-      <Select
-        label="Role"
-        placeholder="Choose your role"
-        options={ROLES.map((r) => ({ value: r.value, label: r.label }))}
-        required
-        error={errors.role?.message}
-        registration={register("role")}
-      />
+      <p className="rounded-lg bg-teal-soft/60 p-3 text-xs text-muted">
+        New accounts start as <b>Sales Staff</b>. The pharmacy owner (Admin) can then give you the Pharmacist or Admin role. The very
+        first account becomes the Admin.
+      </p>
 
       <Input
         label="Email"

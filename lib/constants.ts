@@ -46,3 +46,18 @@ export function canEdit(role: string): boolean {
 export function canDelete(role: string): boolean {
   return role === "admin";
 }
+
+/** Admin and Pharmacist manage stock: dashboard, suppliers, forecast, alerts and reports. */
+export function canManage(role: string): boolean {
+  return role === "admin" || role === "pharmacist";
+}
+
+/** Only Admin manages users, the audit log and backups. */
+export function isAdmin(role: string): boolean {
+  return role === "admin";
+}
+
+/** First page after login. FR-16: Sales Staff start (and mostly stay) on the sales screen. */
+export function homeFor(role: string): string {
+  return role === "sales_staff" ? "/sales" : "/";
+}

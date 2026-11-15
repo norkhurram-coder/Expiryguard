@@ -7,6 +7,9 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PAGES = ["/login", "/signup"];
 
 export async function updateSession(request: NextRequest) {
+  // The daily cron job has no login session; it checks its own secret (CRON_SECRET).
+  if (request.nextUrl.pathname.startsWith("/api/cron/")) return NextResponse.next({ request });
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
