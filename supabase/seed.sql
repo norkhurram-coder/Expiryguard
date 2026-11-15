@@ -28,6 +28,15 @@ insert into public.medicines (brand_name, generic_name, strength, dosage_form, c
   ('Softin',   'Loratadine',                    '10 mg',       'tablet',  'Antihistamine',    'A-4', 30,  '8964000100080')
 on conflict (brand_name, strength, dosage_form) do nothing;
 
+-- Medicines added by the older (40%) seed have no barcode yet – give them one.
+update public.medicines m
+   set barcode = v.barcode
+  from (values ('Panadol', '500 mg', '8964000100011'), ('Augmentin', '625 mg', '8964000100028'), ('Brufen', '400 mg', '8964000100035'),
+               ('Risek', '20 mg', '8964000100042'), ('Calpol', '120 mg/5 ml', '8964000100059'), ('Flagyl', '400 mg', '8964000100066'),
+               ('Ventolin', '100 mcg', '8964000100073'), ('Softin', '10 mg', '8964000100080')) as v(brand, strength, barcode)
+ where m.brand_name = v.brand and m.strength = v.strength and m.barcode is null
+   and not exists (select 1 from public.medicines x where x.barcode = v.barcode);
+
 -- Batches: (brand, batch no, supplier, days until expiry, quantity, purchase price, sale price)
 insert into public.batches (medicine_id, supplier_id, batch_no, expiry_date, quantity, purchase_price, sale_price)
 select m.id, s.id, v.batch_no, public.pk_today() + v.days, v.qty, v.buy, v.sell
