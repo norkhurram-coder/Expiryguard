@@ -1,4 +1,5 @@
 // EXPIRY DASHBOARD (FR-07, FR-13, FR-14) – live data from Supabase.
+// Alert bands come from the ExpiryAlertFactory; the parallel scan uses the Singleton WorkerPool.
 import Card from "@/components/ui/Card";
 import PageHeader from "@/components/ui/PageHeader";
 import Alert from "@/components/ui/Alert";
@@ -8,7 +9,9 @@ import { Table, Td } from "@/components/ui/Table";
 import { ButtonLink } from "@/components/ui/Button";
 import { getCurrentUser } from "@/lib/auth";
 import { canEdit } from "@/lib/constants";
-import { daysUntil, getExpiryStatus, isExpired, lastReturnDate, todayISO } from "@/lib/expiry";
+import { daysUntil, isExpired, lastReturnDate, todayISO } from "@/lib/expiry";
+import { ExpiryAlertFactory } from "@/lib/patterns/ExpiryAlertFactory";
+import ParallelExpiryScan, { type ScanBatch } from "@/components/scan/ParallelExpiryScan";
 import { formatDate } from "@/lib/format";
 import type { BatchWithDetails, Medicine } from "@/lib/types";
 
@@ -33,15 +36,26 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   // Count batches in each alert band
   const counts = { expired: 0, within30: 0, within60: 0, within90: 0 };
+  const today = todayISO();
   for (const b of batches) {
-    const status = getExpiryStatus(b.expiry_date);
-    if (status !== "safe") counts[status]++;
+    const level = ExpiryAlertFactory.create(b.expiry_date, today).level;
+    if (level !== "safe") counts[level]++;
   }
 
   const nearExpiry = batches.filter((b) => {
-    const s = getExpiryStatus(b.expiry_date);
-    return s === "within30" || s === "within60" || s === "within90";
+    const alert = ExpiryAlertFactory.create(b.expiry_date, today);
+    return alert.canSell && alert.level !== "safe";
   });
+
+  // Small copy of each batch for the background threads (only what they need).
+  const scanBatches: ScanBatch[] = batches.map((b) => ({
+    id: b.id,
+    name: `${b.medicines?.brand_name ?? "Medicine"} ${b.medicines?.strength ?? ""}`.trim(),
+    batch_no: b.batch_no,
+    expiry_date: b.expiry_date,
+    quantity: b.quantity,
+    purchase_price: Number(b.purchase_price),
+  }));
 
   // FR-13: expired batches go to the quarantine list (they must not be sold)
   const quarantine = batches.filter((b) => isExpired(b.expiry_date));
@@ -87,6 +101,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               </div>
             ))}
           </div>
+
+          {/* Multithreading: parallel scan with the worker pool */}
+          <Card
+            title="Parallel expiry scan"
+            action={<Badge color="teal">Web Workers · multithreading</Badge>}
+          >
+            <p className="mb-4 text-sm text-muted">
+              Splits all {batches.length} batches between background threads that work at the same time. Choose 1, 2 or 4
+              threads and compare how long the scan takes.
+            </p>
+            <ParallelExpiryScan batches={scanBatches} />
+          </Card>
 
           {/* Near-expiry table */}
           <Card title="Near-expiry stock (next 90 days)">
