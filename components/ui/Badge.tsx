@@ -1,4 +1,4 @@
-import { getExpiryStatus, type ExpiryStatus } from "@/lib/expiry";
+import { ExpiryAlertFactory } from "@/lib/patterns/ExpiryAlertFactory";
 
 type Color = "red" | "orange" | "yellow" | "teal" | "green" | "grey";
 
@@ -20,16 +20,8 @@ export default function Badge({ color, children }: { color: Color; children: Rea
   );
 }
 
-const expiryLook: Record<ExpiryStatus, { color: Color; label: string }> = {
-  expired: { color: "red", label: "Expired" },
-  within30: { color: "orange", label: "≤ 30 days" },
-  within60: { color: "yellow", label: "≤ 60 days" },
-  within90: { color: "teal", label: "≤ 90 days" },
-  safe: { color: "green", label: "Safe" },
-};
-
-/** Expiry badge: red = expired, orange = 30 days, yellow = 60 days, teal = 90 days. */
+/** Expiry badge: red = expired, orange = 30 days, yellow = 60 days, teal = 90 days. The Factory decides the look. */
 export function ExpiryBadge({ expiryDate }: { expiryDate: string }) {
-  const look = expiryLook[getExpiryStatus(expiryDate)];
-  return <Badge color={look.color}>{look.label}</Badge>;
+  const alert = ExpiryAlertFactory.create(expiryDate);
+  return <Badge color={alert.color}>{alert.label}</Badge>;
 }
