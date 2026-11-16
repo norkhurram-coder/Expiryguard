@@ -3,7 +3,6 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/types";
-import { homeFor } from "@/lib/constants";
 
 // cache() means the layout and the page share one lookup per request.
 export const getCurrentUser = cache(async () => {
@@ -16,7 +15,7 @@ export const getCurrentUser = cache(async () => {
 
   const { data } = await supabase
     .from("profiles")
-    .select("id, full_name, age, phone, role, email")
+    .select("id, full_name, age, phone, role")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -30,7 +29,7 @@ export const getCurrentUser = cache(async () => {
   };
 });
 
-/** Send users who are not allowed on a page back to their home page with a message. */
+/** Send users who are not allowed on a page back to the dashboard. */
 export function requireRole(role: string, allowed: string[]) {
-  if (!allowed.includes(role)) redirect(`${homeFor(role)}?denied=1`);
+  if (!allowed.includes(role)) redirect("/?denied=1");
 }

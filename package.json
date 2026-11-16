@@ -1,24 +1,20 @@
 {
   "name": "expiryguard",
-  "version": "1.0.0",
+  "version": "0.4.0",
   "private": true,
   "description": "ExpiryGuard – Smart Pharmacy Stock & Expiry Management System",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "test": "jest"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.100.0",
-    "chart.js": "^4.6.1",
     "next": "^16.0.0",
-    "nodemailer": "^10.5.0",
     "react": "^19.2.0",
-    "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.60.0",
     "zod": "^4.1.0"
@@ -27,14 +23,10 @@
     "@tailwindcss/postcss": "^4.1.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
-    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "jest": "^30.0.0",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.9.0"
-  },
-  "engines": {
-    "node": ">=22.18"
   }
 }
