@@ -130,3 +130,23 @@ export const batchSchema = z.object({
   sale_price: price("Sale price"),
 });
 export type BatchValues = z.infer<typeof batchSchema>;
+
+// ---------- sales checkout (FR-04) ----------
+// Same limits as the database function process_sale, checked BEFORE the sale is sent.
+export const saleLineSchema = z.object({
+  medicineId: z.number().int().positive("Unknown medicine"),
+  quantity: wholeNumber("Quantity", 1, 10_000),
+});
+
+export const saleSchema = z
+  .array(saleLineSchema)
+  .min(1, "The cart is empty – add at least one medicine")
+  .max(50, "A sale can have at most 50 different medicines")
+  .refine((lines) => new Set(lines.map((l) => l.medicineId)).size === lines.length, "The same medicine is in the cart twice");
+export type SaleLine = z.infer<typeof saleLineSchema>;
+
+/** Search box on the sales screen: letters, numbers, spaces and - . / + only. */
+export const saleSearchSchema = z
+  .string()
+  .max(50, "Search must be 50 characters or less")
+  .regex(/^[A-Za-z0-9 .\-\/+]*$/, "Use only letters, numbers, spaces and - . / +");
