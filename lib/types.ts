@@ -45,3 +45,29 @@ export type BatchWithDetails = Batch & {
   medicines: Pick<Medicine, "brand_name" | "strength" | "dosage_form"> | null;
   suppliers: Pick<Supplier, "name" | "return_window_days"> | null;
 };
+
+/** One sale at the counter (created only by the database function process_sale). */
+export type Sale = {
+  id: number;
+  sold_by: string | null;
+  cashier_name: string | null;
+  sold_at: string;
+  total: number;
+};
+
+export type SaleItem = {
+  id: number;
+  sale_id: number;
+  batch_id: number;
+  medicine_id: number;
+  quantity: number;
+  unit_price: number;
+  sold_on: string;
+};
+
+/** What process_sale returns – used to show the receipt. */
+export type SaleReceipt = {
+  sale_id: number;
+  total: number;
+  lines: { medicine: string; batch_no: string; expiry_date: string; quantity: number; unit_price: number }[];
+};

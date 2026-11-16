@@ -1,9 +1,22 @@
 -- =====================================================================
--- ExpiryGuard database script (40% milestone)
+-- ExpiryGuard database script (50% milestone)
 -- Paste ALL of this into Supabase → SQL Editor → New query → Run.
 -- Safe to run again: it only creates things that don't exist yet
 -- and replaces functions/policies. It does not delete your data.
+-- (If you already ran the 40% version, just run this file again.)
 -- =====================================================================
+
+
+-- ---------------------------------------------------------------------
+-- 0. HELPER: today's date in Pakistan time (the database runs in UTC)
+-- ---------------------------------------------------------------------
+create or replace function public.pk_today()
+returns date
+language sql
+stable
+as $$
+  select (now() at time zone 'Asia/Karachi')::date;
+$$;
 
 
 -- ---------------------------------------------------------------------
@@ -128,7 +141,127 @@ create trigger check_batch_expiry
 
 
 -- ---------------------------------------------------------------------
--- 5. ROW LEVEL SECURITY
+-- 5. SALES  (FR-04, FR-05, FR-06: checkout with FEFO and expired-sale block)
+-- ---------------------------------------------------------------------
+create table if not exists public.sales (
+  id            bigint generated always as identity primary key,
+  sold_by       uuid references public.profiles (id) on delete set null,
+  cashier_name  text,
+  sold_at       timestamptz not null default now(),
+  total         numeric(12, 2) not null default 0 check (total >= 0)
+);
+
+create table if not exists public.sale_items (
+  id           bigint generated always as identity primary key,
+  sale_id      bigint not null references public.sales (id) on delete cascade,
+  batch_id     bigint not null references public.batches (id) on delete restrict,
+  medicine_id  bigint not null references public.medicines (id) on delete restrict,
+  quantity     int    not null check (quantity > 0),
+  unit_price   numeric(10, 2) not null check (unit_price > 0),
+  sold_on      date   not null default public.pk_today()
+);
+
+create index if not exists sales_sold_at_idx on public.sales (sold_at);
+create index if not exists sale_items_sale_idx on public.sale_items (sale_id);
+-- Needed later for the risk forecast (average daily sales per medicine).
+create index if not exists sale_items_medicine_date_idx on public.sale_items (medicine_id, sold_on);
+
+
+-- ---------------------------------------------------------------------
+-- 6. CHECKOUT FUNCTION  (FR-04 FEFO, FR-05 block expired, concurrency-safe)
+--
+-- p_items = [{"medicine_id": 1, "quantity": 3}, ...]
+-- For every medicine it takes stock from the earliest-expiring, NOT expired batch first,
+-- and moves on to the next batch when one is not enough. Expired batches are never touched.
+--
+-- "FOR UPDATE" locks the batch rows while the sale is being saved. If two counters sell
+-- the last packs at the same moment, the second one waits for the first to finish and
+-- then sees the new quantity - so stock can never go below zero (no race condition).
+-- The whole sale is one transaction: if any item fails, nothing is saved.
+-- ---------------------------------------------------------------------
+create or replace function public.process_sale(p_items jsonb)
+returns jsonb
+language plpgsql
+security definer set search_path = ''
+as $$
+declare
+  v_role     text := public.get_my_role();
+  v_today    date := public.pk_today();
+  v_sale_id  bigint;
+  v_total    numeric(12, 2) := 0;
+  v_lines    jsonb := '[]'::jsonb;
+  v_item     jsonb;
+  v_med_id   bigint;
+  v_med_name text;
+  v_need     int;
+  v_take     int;
+  v_batch    record;
+begin
+  if v_role is null then
+    raise exception 'You must be logged in to make a sale.';
+  end if;
+  if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'The cart is empty.';
+  end if;
+  if jsonb_array_length(p_items) > 50 then
+    raise exception 'A sale can have at most 50 items.';
+  end if;
+
+  insert into public.sales (sold_by, cashier_name)
+  values (auth.uid(), (select full_name from public.profiles where id = auth.uid()))
+  returning id into v_sale_id;
+
+  for v_item in select * from jsonb_array_elements(p_items) loop
+    v_med_id := (v_item ->> 'medicine_id')::bigint;
+    v_need   := (v_item ->> 'quantity')::int;
+
+    select brand_name || ' ' || strength into v_med_name from public.medicines where id = v_med_id;
+    if v_med_name is null then
+      raise exception 'Medicine % was not found.', v_med_id;
+    end if;
+    if v_need is null or v_need < 1 or v_need > 10000 then
+      raise exception 'Quantity for % must be between 1 and 10,000.', v_med_name;
+    end if;
+
+    for v_batch in
+      select id, batch_no, quantity, sale_price, expiry_date
+      from public.batches
+      where medicine_id = v_med_id
+        and quantity > 0
+        and expiry_date > v_today          -- FR-05: expired stock is never sold
+      order by expiry_date, id             -- FR-04: First-Expiry-First-Out
+      for update                           -- lock: safe when two counters sell at once
+    loop
+      exit when v_need = 0;
+      v_take := least(v_need, v_batch.quantity);
+
+      update public.batches set quantity = quantity - v_take where id = v_batch.id;
+      insert into public.sale_items (sale_id, batch_id, medicine_id, quantity, unit_price, sold_on)
+      values (v_sale_id, v_batch.id, v_med_id, v_take, v_batch.sale_price, v_today);
+
+      v_total := v_total + v_take * v_batch.sale_price;
+      v_lines := v_lines || jsonb_build_object(
+        'medicine', v_med_name, 'batch_no', v_batch.batch_no, 'expiry_date', v_batch.expiry_date,
+        'quantity', v_take, 'unit_price', v_batch.sale_price);
+      v_need := v_need - v_take;
+    end loop;
+
+    if v_need > 0 then
+      raise exception 'Not enough in-date stock of %: % more needed. Expired batches cannot be sold.', v_med_name, v_need;
+    end if;
+  end loop;
+
+  update public.sales set total = v_total where id = v_sale_id;
+  return jsonb_build_object('sale_id', v_sale_id, 'total', v_total, 'lines', v_lines);
+end;
+$$;
+
+revoke all on function public.process_sale(jsonb) from public, anon;
+grant execute on function public.process_sale(jsonb) to authenticated;
+
+
+-- ---------------------------------------------------------------------
+-- 7. ROW LEVEL SECURITY
 -- Rule of thumb: RLS ON + no policy = the table looks EMPTY to the app.
 -- ---------------------------------------------------------------------
 
@@ -147,6 +280,8 @@ alter table public.profiles  enable row level security;
 alter table public.suppliers enable row level security;
 alter table public.medicines enable row level security;
 alter table public.batches   enable row level security;
+alter table public.sales      enable row level security;
+alter table public.sale_items enable row level security;
 
 -- PROFILES: you can see your own profile; Admin can see and edit everyone's.
 drop policy if exists "profiles: read own or admin" on public.profiles;
@@ -227,6 +362,22 @@ create policy "batches: delete" on public.batches
   for delete to authenticated
   using (public.get_my_role() = 'admin');
 
+-- SALES + SALE ITEMS: Admin and Pharmacist see all sales; Sales Staff see their own.
+-- Nobody can insert/edit/delete directly - sales are only created by process_sale().
+drop policy if exists "sales: view" on public.sales;
+create policy "sales: view" on public.sales
+  for select to authenticated
+  using (public.get_my_role() in ('admin', 'pharmacist') or sold_by = (select auth.uid()));
+
+drop policy if exists "sale_items: view" on public.sale_items;
+create policy "sale_items: view" on public.sale_items
+  for select to authenticated
+  using (
+    public.get_my_role() in ('admin', 'pharmacist')
+    or exists (select 1 from public.sales s where s.id = sale_id and s.sold_by = (select auth.uid()))
+  );
+
 -- Table permissions for logged-in users (RLS above still decides which rows).
 grant select, insert, update, delete on public.suppliers, public.medicines, public.batches to authenticated;
 grant select, update on public.profiles to authenticated;
+grant select on public.sales, public.sale_items to authenticated;
