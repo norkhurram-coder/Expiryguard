@@ -1,72 +1,73 @@
 # ExpiryGuard
 
-**Smart Pharmacy Stock & Expiry Management System**
-*Sell safe stock. Lose less to expiry.*
+**Smart Pharmacy Stock & Expiry Management System** – *Sell safe stock. Lose less to expiry.*
+
 **Live demo:** https://expiryguard-lyart.vercel.app
 
 Noor-ul-Haya · F24-BSSE-105 · Section 5B · Software Construction & Development · Instructor: Sir Waqas
 
-Small medical stores in Pakistan track medicines in paper registers and check expiry dates by eye. ExpiryGuard records every medicine by batch and expiry date, blocks expired stock, warns early (90/60/30 days), and – in the next milestones – sells the earliest-expiring batch first (FEFO) and forecasts which stock won't sell before it expires.
+ExpiryGuard records every medicine by batch and expiry date, sells the earliest-expiring batch first (FEFO), blocks expired stock at checkout and warns 90/60/30 days before expiry.
 
 ## Tech stack
 
-| Part | Tool |
+Next.js + Tailwind CSS · Supabase (PostgreSQL, Auth, Row Level Security) · React Hook Form + Zod · Web Workers · Jest · Vercel
+
+## 50% milestone
+
+| Requirement | Done |
 |---|---|
-| Frontend | Next.js (App Router) + Tailwind CSS |
-| Database & Auth | Supabase (PostgreSQL, Auth, Row Level Security) |
-| Forms & validation | React Hook Form + Zod |
-| Testing | Jest |
-| Hosting | GitHub + Vercel |
+| UI (50%, well designed) | Login, Sign-up, Dashboard, Sales, Medicines, Batches, Suppliers (list, add, edit) |
+| Database + validation for all forms | All 6 forms save to Supabase and are validated with Zod (`lib/validation.ts`) and database CHECK rules |
+| 2 design patterns | Factory + Singleton (see below) |
+| Threads | Parallel expiry scan with Web Workers (see below) |
 
-## Progress
+**Next milestones:** risk forecast, daily email alerts, monthly reports.
 
-| Module | Status |
+## Multithreading
+
+**Where to see it:** Dashboard → **Parallel expiry scan** → choose 1, 2 or 4 threads → **Run parallel scan**.
+
+The batches are split into chunks, and each chunk is checked on its own background thread (Web Worker) **at the same time**. Each thread has its own progress bar, and the "main thread responsive" counter keeps ticking, which shows the page doesn't freeze. The card also shows the time taken and the speed-up.
+
+| File | What it does |
 |---|---|
-| Expiry logic + unit tests (`lib/expiry.ts`) | ✅ Done |
-| Database schema, RLS, seed data | ✅ Done |
-| Sign-up / login / logout with roles | ✅ Done |
-| Layout + page protection | ✅ Done |
-| Suppliers CRUD (FR-11 return window) | ✅ Done |
-| Medicines CRUD (FR-01) | ✅ Done |
-| Batches / purchase entry (FR-02, FR-03) | ✅ Done |
-| Expiry dashboard, quarantine, low stock (FR-07, FR-13, FR-14) | ✅ Done |
-| Role-based access (FR-16 basics) | ✅ Done |
-| Sales with FEFO (FR-04, FR-05, FR-06) | ⬜ Next |
-| Risk forecast (FR-09, FR-10, FR-12) | ⬜ Next |
-| Daily email alerts (FR-08) | ⬜ Next |
-| Monthly reports (FR-15) | ⬜ Next |
+| `public/workers/expiry-scanner.js` | The thread: calculates days to expiry for its chunk and sends the results back with `postMessage` |
+| `lib/threads/WorkerPool.ts` | Thread pool: starts up to 4 threads, runs tasks in parallel, reuses threads, queues extra tasks |
+| `components/scan/ParallelExpiryScan.tsx` | Splits the batches into chunks, runs them on the pool, shows the progress bars and results |
 
-## Run it on your computer
+## Design patterns
+
+### 1. Factory – `lib/patterns/ExpiryAlertFactory.ts`
+`ExpiryAlertFactory.create(expiryDate)` decides which alert object to create: **Expired, ≤30 days, ≤60 days, ≤90 days or Safe**. Each object knows its colour, its priority, whether it can be sold and what advice to give. Screens never use `new` or repeat if/else checks.
+
+Used in: `components/ui/Badge.tsx`, `app/(app)/page.tsx` (dashboard), `components/sales/Checkout.tsx` (blocks expired stock), `components/scan/ParallelExpiryScan.tsx`.
+
+### 2. Singleton – `lib/threads/WorkerPool.ts` and `lib/supabase/client.ts`
+The constructor is `private`, so the only way to get the object is `getInstance()`, which always returns the **same one**.
+- `WorkerPool.getInstance()`: the whole app shares one thread pool, so no screen can start extra threads by mistake.
+- `SupabaseBrowser.getInstance()`: the browser opens only one database connection.
+
+*Bonus – Object Pool:* `WorkerPool` reuses its threads instead of starting new ones for every scan.
+
+## Sales with FEFO
+
+Sales screen (`/sales`): for every item in the cart it shows which batch each unit will come from, earliest expiry first. Expired batches are blocked. The sale is saved by the database function `process_sale` (`supabase/schema.sql`) in one transaction with row locks, so two counters can't sell the same stock.
+
+## Run it
 
 ```bash
 npm install
-cp .env.example .env.local   # then paste your Supabase URL and key into .env.local
-npm run dev                  # open http://localhost:3000
-npm test                     # runs the expiry logic tests
+cp .env.example .env.local   # add your Supabase URL and key
+npm run dev                  # http://localhost:3000
+npm test                     # 46 unit tests
 ```
 
-Database: run `supabase/schema.sql`, then `supabase/seed.sql`, in the Supabase SQL Editor.
-
-Full step-by-step instructions (Mac): see **GUIDE.md**.
+Database: run `supabase/schema.sql`, then `supabase/seed.sql`, in the Supabase SQL Editor. Full steps: **GUIDE.md**.
 
 ## Roles
 
 | Role | Can do |
 |---|---|
-| Admin (Owner) | Everything, including delete |
-| Pharmacist | View, add and edit medicines, suppliers and batches |
-| Sales Staff | View medicines and stock only |
-
-## Project structure
-
-```
-app/                 pages (login, signup, dashboard, medicines, batches, suppliers)
-components/ui/       reusable Button, Input, Card, Table, Badge, Alert…
-components/…         forms and tables for each module
-lib/expiry.ts        expiry, FEFO and forecast formulas (pure functions)
-lib/validation.ts    all form validation rules (Zod)
-lib/supabase/        Supabase clients for browser, server and proxy
-proxy.ts             keeps users logged in and protects pages
-supabase/            schema.sql (tables, RLS) and seed.sql (sample data)
-tests/               Jest unit tests
-```
+| Admin | Everything, including delete |
+| Pharmacist | Add and edit medicines, suppliers and batches; sell |
+| Sales Staff | Sell; view medicines and stock |
