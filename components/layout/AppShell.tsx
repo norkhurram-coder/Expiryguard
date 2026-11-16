@@ -8,14 +8,15 @@ import LogoutButton from "./LogoutButton";
 
 const MAIN_LINKS = [
   { href: "/", label: "Dashboard", icon: "📊" },
+  { href: "/sales", label: "Sales (FEFO)", icon: "🛒" },
   { href: "/medicines", label: "Medicines", icon: "💊" },
   { href: "/batches", label: "Batches / Stock", icon: "📦" },
   { href: "/suppliers", label: "Suppliers", icon: "🚚", hideForSales: true },
 ];
 
 const COMING_SOON = [
-  { label: "Sales (FEFO)", icon: "🛒" },
   { label: "Risk Forecast", icon: "📈" },
+  { label: "Email Alerts", icon: "🔔" },
   { label: "Reports", icon: "📄" },
 ];
 
