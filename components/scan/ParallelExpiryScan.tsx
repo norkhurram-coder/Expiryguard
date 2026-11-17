@@ -7,6 +7,7 @@
 // 4. The main thread turns the results into alert objects with the ExpiryAlertFactory.
 // While the threads work, the "main thread" counter keeps ticking – the page never freezes.
 // Run it with 1 thread and then with 4 to compare the times.
+// Styled for the dark card it sits in on the dashboard (light text on a dark background).
 import { useEffect, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
@@ -117,7 +118,7 @@ export default function ParallelExpiryScan({ batches }: { batches: ScanBatch[] }
     <div className="space-y-5">
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="inline-flex rounded-lg border border-teal-line bg-white p-1" role="group" aria-label="Number of threads">
+        <div className="inline-flex rounded-lg border border-white/15 bg-white/10 p-1" role="group" aria-label="Number of threads">
           {THREAD_OPTIONS.map((n) => (
             <button
               key={n}
@@ -125,23 +126,23 @@ export default function ParallelExpiryScan({ batches }: { batches: ScanBatch[] }
               disabled={running}
               onClick={() => setThreads(n)}
               className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
-                threads === n ? "bg-teal-brand text-white" : "text-teal-brand hover:bg-teal-soft"
+                threads === n ? "bg-white text-teal-dark" : "text-white/80 hover:bg-white/10"
               }`}
             >
               {n} {n === 1 ? "thread" : "threads"}
             </button>
           ))}
         </div>
-        <Button onClick={startScan} loading={running} disabled={batches.length === 0}>
+        <Button variant="secondary" onClick={startScan} loading={running} disabled={batches.length === 0}>
           {running ? "Scanning in background…" : "Run parallel scan"}
         </Button>
-        <span className="flex items-center gap-2 text-sm text-muted">
-          <span className={`h-2.5 w-2.5 rounded-full ${running ? "animate-pulse bg-emerald-500" : "bg-gray-300"}`} />
-          Main thread responsive: <b className="tabular-nums text-teal-brand">{ticks}</b> ticks
+        <span className="flex items-center gap-2 text-sm text-white/70">
+          <span className={`h-2.5 w-2.5 rounded-full ${running ? "animate-pulse bg-emerald-400" : "bg-white/30"}`} />
+          Main thread responsive: <b className="tabular-nums text-white">{ticks}</b> ticks
         </span>
       </div>
 
-      {error && <p className="text-sm font-semibold text-red-700">{error}</p>}
+      {error && <p className="text-sm font-semibold text-red-300">{error}</p>}
 
       {/* One lane per thread */}
       {lanes.length > 0 && (
@@ -150,18 +151,18 @@ export default function ParallelExpiryScan({ batches }: { batches: ScanBatch[] }
             const pct = lane.total === 0 ? 0 : Math.round((lane.done / lane.total) * 100);
             return (
               <div key={lane.chunk} className="grid grid-cols-[110px_1fr_90px] items-center gap-3 text-sm">
-                <span className="font-semibold text-ink">
+                <span className="font-semibold text-white">
                   Thread {lane.threadId ?? "…"}
-                  <span className="block text-xs font-normal text-muted">chunk {lane.chunk + 1}</span>
+                  <span className="block text-xs font-normal text-white/60">chunk {lane.chunk + 1}</span>
                 </span>
-                <div className="h-3 overflow-hidden rounded-full bg-teal-soft">
+                <div className="h-3 overflow-hidden rounded-full bg-white/15">
                   <div
-                    className={`h-full rounded-full transition-[width] duration-150 ${lane.ms !== null ? "bg-teal-brand" : "bg-coral"}`}
+                    className={`h-full rounded-full transition-[width] duration-150 ${lane.ms !== null ? "bg-emerald-400" : "bg-coral"}`}
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <span className="text-right tabular-nums text-muted">
-                  {lane.done}/{lane.total} {lane.ms !== null && <b className="text-teal-brand">· {lane.ms} ms</b>}
+                <span className="text-right tabular-nums text-white/70">
+                  {lane.done}/{lane.total} {lane.ms !== null && <b className="text-emerald-300">· {lane.ms} ms</b>}
                 </span>
               </div>
             );
@@ -184,25 +185,25 @@ export default function ParallelExpiryScan({ batches }: { batches: ScanBatch[] }
 
       {/* Results */}
       {findings && (
-        <div className="space-y-3 rounded-xl border border-teal-line p-4">
+        <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge color="red">Expired: {counts.expired}</Badge>
             <Badge color="orange">≤ 30 days: {counts.within30}</Badge>
             <Badge color="yellow">≤ 60 days: {counts.within60}</Badge>
             <Badge color="teal">≤ 90 days: {counts.within90}</Badge>
             <Badge color="green">Safe: {counts.safe}</Badge>
-            <span className="ml-auto text-sm">
-              Value at risk (expired + 30 days): <b className="text-coral">{formatPKR(valueAtRisk)}</b>
+            <span className="ml-auto text-sm text-white/80">
+              Value at risk (expired + 30 days): <b className="text-orange-300">{formatPKR(valueAtRisk)}</b>
             </span>
           </div>
           {urgent.length > 0 && (
-            <ul className="divide-y divide-teal-line text-sm">
+            <ul className="divide-y divide-white/10 text-sm text-white">
               {urgent.map(({ batch, alert }) => (
                 <li key={batch.id} className="flex flex-wrap items-center gap-2 py-2">
                   <Badge color={alert.color}>{alert.label}</Badge>
                   <b>{batch.name}</b>
-                  <span className="text-muted">batch {batch.batch_no} · {batch.quantity} units</span>
-                  <span className="ml-auto text-xs text-muted">{alert.advice()}</span>
+                  <span className="text-white/60">batch {batch.batch_no} · {batch.quantity} units</span>
+                  <span className="ml-auto text-xs text-white/60">{alert.advice()}</span>
                 </li>
               ))}
             </ul>
@@ -215,10 +216,10 @@ export default function ParallelExpiryScan({ batches }: { batches: ScanBatch[] }
 
 function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-xl border border-teal-line bg-teal-soft/50 p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-1 text-2xl font-bold tabular-nums text-teal-brand">{value}</p>
-      <p className="text-xs text-muted">{hint}</p>
+    <div className="rounded-xl border border-white/10 bg-white/10 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-white/60">{label}</p>
+      <p className="mt-1 text-2xl font-bold tabular-nums text-white">{value}</p>
+      <p className="text-xs text-white/60">{hint}</p>
     </div>
   );
 }
