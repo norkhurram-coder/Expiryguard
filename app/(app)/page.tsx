@@ -107,6 +107,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <Card
             title="Parallel expiry scan"
             action={<Badge color="teal">Web Workers · multithreading</Badge>}
+            background="border-sky-200 bg-linear-to-br from-sky-50 via-white to-teal-soft"
           >
             <p className="mb-4 text-sm text-muted">
               Splits all {batches.length} batches between background threads that work at the same time. Choose 1, 2 or 4
