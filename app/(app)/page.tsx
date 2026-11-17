@@ -12,6 +12,7 @@ import { canEdit } from "@/lib/constants";
 import { daysUntil, isExpired, lastReturnDate, todayISO } from "@/lib/expiry";
 import { ExpiryAlertFactory } from "@/lib/patterns/ExpiryAlertFactory";
 import ParallelExpiryScan, { type ScanBatch } from "@/components/scan/ParallelExpiryScan";
+import MedicineSearch from "@/components/dashboard/MedicineSearch";
 import { formatDate } from "@/lib/format";
 import type { BatchWithDetails, Medicine } from "@/lib/types";
 
@@ -112,6 +113,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               threads and compare how long the scan takes.
             </p>
             <ParallelExpiryScan batches={scanBatches} />
+          </Card>
+
+          {/* Medicine search */}
+          <Card title="Search medicine" action={<span className="text-xs text-muted">{medicines.length} medicines in the catalogue</span>}>
+            <MedicineSearch
+              medicines={medicines}
+              batches={batches.map((b) => ({
+                id: b.id,
+                medicine_id: b.medicine_id,
+                batch_no: b.batch_no,
+                expiry_date: b.expiry_date,
+                quantity: b.quantity,
+              }))}
+            />
           </Card>
 
           {/* Near-expiry table */}
